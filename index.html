@@ -1,0 +1,207 @@
+<div style="display:grid; grid-template-columns: 300px 1fr; gap:14px;">
+<h2 class="sr-only">Simulador interactivo de dos dispositivos: un generador de funciones con perillas y botones, y un osciloscopio que muestra las señales y permite operaciones matemáticas entre canales</h2>
+
+<div style="background:#3a3a38; border-radius:10px; padding:12px; border:1px solid #222;">
+<div style="color:#e8e6df; font-size:12px; font-weight:500; letter-spacing:0.5px; margin-bottom:8px;">GENERADOR DE FUNCIONES</div>
+<div style="background:#0a1a0a; border-radius:6px; padding:8px 10px; margin-bottom:10px; font-family:var(--font-mono); color:#7fdb7f; font-size:13px; border:1px solid #000;">
+<div id="lcdA">CH1  SIN  1.0Hz  1.0V</div>
+<div id="lcdB">CH2  SQR  1.0Hz  1.0V</div>
+</div>
+
+<div style="background:#2c2c2a; border-radius:8px; padding:10px; margin-bottom:10px;">
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+<span style="color:#d4a017; font-size:11px; font-weight:500;">CANAL 1</span>
+<label style="display:flex; align-items:center; gap:4px; font-size:10px; color:#ccc;"><input type="checkbox" id="showA" checked style="width:12px;height:12px;"> ON</label>
+</div>
+<div style="display:flex; gap:6px; margin-bottom:8px;" id="wavesA"></div>
+<div style="display:flex; justify-content:space-around;">
+<div style="text-align:center;"><div class="knob" id="knobFreqA"></div><span style="color:#aaa;font-size:9px;">FREQ</span></div>
+<div style="text-align:center;"><div class="knob" id="knobAmpA"></div><span style="color:#aaa;font-size:9px;">AMPL</span></div>
+<div style="text-align:center;"><div class="knob" id="knobPhA"></div><span style="color:#aaa;font-size:9px;">FASE</span></div>
+</div>
+</div>
+
+<div style="background:#2c2c2a; border-radius:8px; padding:10px;">
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+<span style="color:#29b6d8; font-size:11px; font-weight:500;">CANAL 2</span>
+<label style="display:flex; align-items:center; gap:4px; font-size:10px; color:#ccc;"><input type="checkbox" id="showB" checked style="width:12px;height:12px;"> ON</label>
+</div>
+<div style="display:flex; gap:6px; margin-bottom:8px;" id="wavesB"></div>
+<div style="display:flex; justify-content:space-around;">
+<div style="text-align:center;"><div class="knob" id="knobFreqB"></div><span style="color:#aaa;font-size:9px;">FREQ</span></div>
+<div style="text-align:center;"><div class="knob" id="knobAmpB"></div><span style="color:#aaa;font-size:9px;">AMPL</span></div>
+<div style="text-align:center;"><div class="knob" id="knobPhB"></div><span style="color:#aaa;font-size:9px;">FASE</span></div>
+</div>
+</div>
+</div>
+
+<div style="background:#26262a; border-radius:10px; padding:12px; border:1px solid #111;">
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+<span style="color:#e8e6df; font-size:12px; font-weight:500; letter-spacing:0.5px;">OSCILOSCOPIO</span>
+<div style="display:flex; gap:6px; align-items:center;">
+<span style="width:8px;height:8px;border-radius:50%;background:#3fdc3f;display:inline-block;"></span>
+<span style="color:#7fdb7f; font-size:10px; font-family:var(--font-mono);">RUN</span>
+</div>
+</div>
+<div style="background:#050a05; border-radius:6px; padding:6px; border:2px solid #000;">
+<canvas id="scope" width="640" height="280" style="width:100%; display:block;"></canvas>
+</div>
+<div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:10px; color:#7fdb7f; margin:6px 2px 10px;">
+<span>1V/div</span><span>0.5s/div</span><span id="readoutR">MATH: ninguna</span>
+</div>
+<div style="display:flex; gap:6px;" id="mathButtons"></div>
+</div>
+</div>
+
+<style>
+.knob{width:44px;height:44px;border-radius:50%;background:radial-gradient(circle at 35% 30%, #666, #222);position:relative;cursor:ns-resize;touch-action:none;border:1px solid #111;}
+.knob::after{content:'';position:absolute;top:4px;left:50%;width:2px;height:14px;background:#e0e0e0;transform-origin:1px 18px;transform:translateX(-50%) rotate(var(--rot,0deg));}
+.wbtn{width:34px;height:28px;border-radius:4px;background:#1a1a1a;border:1px solid #444;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;}
+.wbtn.active{background:#4a4a1a;border-color:#d4a017;}
+.wbtn svg{width:20px;height:14px;}
+.mbtn{flex:1;padding:8px 4px;background:#1a1a1a;border:1px solid #444;border-radius:4px;color:#ccc;font-size:11px;cursor:pointer;}
+.mbtn.active{background:#4a1a4a;border-color:#e040e0;color:#e040e0;}
+</style>
+
+<script>
+(function(){
+const canvas = document.getElementById('scope');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height, midY = H/2;
+
+const params = {
+  typeA:'sine', freqA:1, ampA:1, phA:0, showA:true,
+  typeB:'square', freqB:1, ampB:1, phB:0, showB:true,
+  op:'none'
+};
+
+const waveShapes = {
+  sine: 'M2,7 C6,1 10,1 14,7 C18,13 22,13 26,7',
+  square: 'M2,3 L2,3 L2,11 L14,11 L14,3 L26,3 L26,11',
+  triangle: 'M2,11 L8,3 L20,11 L26,3',
+  saw: 'M2,11 L14,3 L14,11 L26,3'
+};
+
+function makeWaveButtons(container, key, defaultType){
+  Object.keys(waveShapes).forEach(type => {
+    const b = document.createElement('button');
+    b.className = 'wbtn' + (type===defaultType?' active':'');
+    b.innerHTML = '<svg viewBox="0 0 28 14"><path d="'+waveShapes[type]+'" fill="none" stroke="#ccc" stroke-width="1.5"/></svg>';
+    b.onclick = () => {
+      params[key] = type;
+      container.querySelectorAll('.wbtn').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+    };
+    container.appendChild(b);
+  });
+}
+makeWaveButtons(document.getElementById('wavesA'), 'typeA', 'sine');
+makeWaveButtons(document.getElementById('wavesB'), 'typeB', 'square');
+
+document.getElementById('showA').addEventListener('change', e => params.showA = e.target.checked);
+document.getElementById('showB').addEventListener('change', e => params.showB = e.target.checked);
+
+function makeKnob(id, min, max, initial, key, degRange){
+  const el = document.getElementById(id);
+  let value = initial;
+  const range = degRange || 270;
+  function setRot(){
+    const pct = (value-min)/(max-min);
+    el.style.setProperty('--rot', (-range/2 + pct*range) + 'deg');
+  }
+  setRot();
+  let dragging = false, startY = 0, startVal = value;
+  el.addEventListener('pointerdown', e => {
+    dragging = true; startY = e.clientY; startVal = value;
+    el.setPointerCapture(e.pointerId);
+  });
+  el.addEventListener('pointermove', e => {
+    if(!dragging) return;
+    const dy = startY - e.clientY;
+    const span = max-min;
+    value = Math.min(max, Math.max(min, startVal + dy*span/150));
+    value = Math.round(value*10)/10;
+    params[key] = value;
+    setRot();
+  });
+  el.addEventListener('pointerup', () => dragging = false);
+}
+makeKnob('knobFreqA', 0.2, 5, 1, 'freqA');
+makeKnob('knobAmpA', 0.1, 3, 1, 'ampA');
+makeKnob('knobPhA', 0, 360, 0, 'phA', 340);
+makeKnob('knobFreqB', 0.2, 5, 1, 'freqB');
+makeKnob('knobAmpB', 0.1, 3, 1, 'ampB');
+makeKnob('knobPhB', 0, 360, 0, 'phB', 340);
+
+const opNames = {none:'ninguna', sum:'CH1+CH2', sub:'CH1-CH2', mul:'CH1xCH2'};
+const mathContainer = document.getElementById('mathButtons');
+[['none','ninguna'],['sum','CH1+CH2'],['sub','CH1-CH2'],['mul','CH1xCH2']].forEach(([op,label]) => {
+  const b = document.createElement('button');
+  b.className = 'mbtn' + (op==='none'?' active':'');
+  b.textContent = label;
+  b.onclick = () => {
+    params.op = op;
+    mathContainer.querySelectorAll('.mbtn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+  };
+  mathContainer.appendChild(b);
+});
+
+function wave(type, t){
+  const phase = (t % 1 + 1) % 1;
+  if(type==='sine') return Math.sin(2*Math.PI*phase);
+  if(type==='square') return phase < 0.5 ? 1 : -1;
+  if(type==='triangle') return phase < 0.5 ? (4*phase - 1) : (3 - 4*phase);
+  if(type==='saw') return 2*phase - 1;
+}
+function valAt(prefix, tSec){
+  const type = params['type'+prefix], f = params['freq'+prefix], a = params['amp'+prefix], ph = params['ph'+prefix];
+  return a * wave(type, f * tSec + ph/360);
+}
+function drawGrid(){
+  ctx.strokeStyle = '#132313'; ctx.lineWidth = 1;
+  for(let x=0; x<=W; x+=W/10){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for(let y=0; y<=H; y+=H/8){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  ctx.strokeStyle = '#254025';
+  ctx.beginPath(); ctx.moveTo(W/2,0); ctx.lineTo(W/2,H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,midY); ctx.lineTo(W,midY); ctx.stroke();
+}
+function drawTrace(color, fn){
+  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
+  const windowSec = 3, pxPerVolt = 32;
+  for(let x=0; x<=W; x++){
+    const tSec = (x/W) * windowSec + timeOffset;
+    const y = midY - fn(tSec) * pxPerVolt;
+    if(x===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+}
+let timeOffset = 0, lastTs = null;
+function fmt(prefix){
+  const abbr = {sine:'SIN',square:'SQR',triangle:'TRI',saw:'SAW'};
+  return 'CH'+(prefix==='A'?'1':'2')+'  '+abbr[params['type'+prefix]]+'  '+params['freq'+prefix].toFixed(1)+'Hz  '+params['amp'+prefix].toFixed(1)+'V';
+}
+function animate(ts){
+  if(lastTs===null) lastTs = ts;
+  const dt = (ts-lastTs)/1000; lastTs = ts;
+  timeOffset += dt*0.5;
+  ctx.clearRect(0,0,W,H);
+  drawGrid();
+  if(params.showA) drawTrace('#e0b020', t => valAt('A', t));
+  if(params.showB) drawTrace('#29b6d8', t => valAt('B', t));
+  if(params.op!=='none'){
+    drawTrace('#e040e0', t => {
+      const a = valAt('A',t), b = valAt('B',t);
+      if(params.op==='sum') return a+b;
+      if(params.op==='sub') return a-b;
+      if(params.op==='mul') return a*b;
+    });
+  }
+  document.getElementById('lcdA').textContent = fmt('A') + (params.showA?'':'  OFF');
+  document.getElementById('lcdB').textContent = fmt('B') + (params.showB?'':'  OFF');
+  document.getElementById('readoutR').textContent = 'MATH: ' + opNames[params.op];
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+})();
+</script>
